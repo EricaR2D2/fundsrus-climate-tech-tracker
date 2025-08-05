@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import pandas as pd
 
 # Configure Streamlit page for wide layout and better visibility
@@ -146,7 +146,60 @@ if __name__ == "__main__":
             )
             filtered_df = filtered_df[investor_mask]
 
-        # Add subheader
+        # KPI Dashboard Section
+        st.subheader("📊 Dashboard Overview")
+
+        # Create 3 columns for KPI metrics
+        col1, col2, col3 = st.columns(3)
+
+        # Calculate KPIs from filtered data
+        total_funding = filtered_df['Amount'].sum()
+        num_deals = len(filtered_df)
+        avg_deal_size = total_funding / num_deals if num_deals > 0 else 0
+
+        # Format total funding to be human-readable
+        def format_currency(amount):
+            if amount >= 1_000_000_000:
+                return f"${amount / 1_000_000_000:.1f}B"
+            elif amount >= 1_000_000:
+                return f"${amount / 1_000_000:.1f}M"
+            elif amount >= 1_000:
+                return f"${amount / 1_000:.1f}K"
+            else:
+                return f"${amount:.0f}"
+
+        # Display KPI metrics
+        with col1:
+            st.metric(
+                label="Total Funding Raised",
+                value=format_currency(total_funding)
+            )
+
+        with col2:
+            st.metric(
+                label="Number of Deals",
+                value=f"{num_deals:,}"
+            )
+
+        with col3:
+            st.metric(
+                label="Average Deal Size",
+                value=format_currency(avg_deal_size)
+            )
+
+        # Funding by Vertical Chart
+        st.subheader("Funding by Vertical")
+
+        if not filtered_df.empty:
+            # Group by Climate Vertical and sum the amounts
+            vertical_funding = filtered_df.groupby('Climate Vertical')['Amount'].sum().sort_values(ascending=False)
+
+            # Create bar chart
+            st.bar_chart(vertical_funding)
+        else:
+            st.info("No data available for the selected filters.")
+
+        # Add subheader for the data table
         st.subheader("Recent Funding Events")
 
         # Display filtered data info

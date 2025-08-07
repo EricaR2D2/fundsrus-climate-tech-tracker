@@ -277,6 +277,25 @@ def add_geography_column(df):
 
     return df
 
+def format_currency(amount):
+    """
+    Format currency amounts to be human-readable.
+
+    Args:
+        amount (float): Amount to format
+
+    Returns:
+        str: Formatted currency string
+    """
+    if amount >= 1_000_000_000:
+        return f"${amount / 1_000_000_000:.1f}B"
+    elif amount >= 1_000_000:
+        return f"${amount / 1_000_000:.1f}M"
+    elif amount >= 1_000:
+        return f"${amount / 1_000:.1f}K"
+    else:
+        return f"${amount:.0f}"
+
 def display_investor_profile(df, investor_name):
     """
     Display detailed profile page for a specific investor.
@@ -307,17 +326,6 @@ def display_investor_profile(df, investor_name):
     # Get preferred verticals and stages
     verticals = investor_deals_df['Climate Vertical'].value_counts()
     stages = investor_deals_df['Funding Stage'].value_counts()
-
-    # Format currency
-    def format_currency(amount):
-        if amount >= 1_000_000_000:
-            return f"${amount / 1_000_000_000:.1f}B"
-        elif amount >= 1_000_000:
-            return f"${amount / 1_000_000:.1f}M"
-        elif amount >= 1_000:
-            return f"${amount / 1_000:.1f}K"
-        else:
-            return f"${amount:.0f}"
 
     # Display KPIs
     col1, col2, col3 = st.columns(3)
@@ -446,6 +454,47 @@ if __name__ == "__main__":
                 # Add main title
                 st.title("🏦 Climate Tech Investor Database")
 
+                # Company Search Section
+                st.subheader("🔍 Quick Company Search")
+                company_search = st.text_input(
+                    "Who funded this company?",
+                    placeholder="e.g., PikaCharge, Reneo, Nira Energy...",
+                    help="Enter a company name to quickly find their investors"
+                )
+
+                # Display company search results if search term is provided
+                if company_search:
+                    # Search for the company in the deals data
+                    company_matches = df[df['Company Name'].str.contains(company_search, case=False, na=False)]
+
+                    if not company_matches.empty:
+                        st.success(f"Found {len(company_matches)} funding round(s) for companies matching '{company_search}':")
+
+                        for idx, deal in company_matches.iterrows():
+                            with st.expander(f"📈 {deal['Company Name']} - {deal['Funding Stage']} ({deal['Funding Date'].strftime('%Y-%m-%d')})"):
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    st.write("**💰 Deal Details:**")
+                                    st.write(f"• **Amount**: {format_currency(deal['Amount'])} {deal['Currency']}")
+                                    st.write(f"• **Stage**: {deal['Funding Stage']}")
+                                    st.write(f"• **Date**: {deal['Funding Date'].strftime('%Y-%m-%d')}")
+                                    st.write(f"• **Vertical**: {deal['Climate Vertical']}")
+
+                                with col2:
+                                    st.write("**🏦 Investors:**")
+                                    if pd.notna(deal['Lead Investor(s)']) and deal['Lead Investor(s)'] != "Not specified":
+                                        st.write(f"• **Lead Investor(s)**: {deal['Lead Investor(s)']}")
+                                    if pd.notna(deal['Other Investors']) and deal['Other Investors'] != "Not specified":
+                                        st.write(f"• **Other Investors**: {deal['Other Investors']}")
+
+                                if pd.notna(deal['Source URL']):
+                                    st.write(f"🔗 [Source]({deal['Source URL']})")
+                    else:
+                        st.warning(f"No companies found matching '{company_search}'. Try a different search term or check the spelling.")
+
+                st.divider()  # Visual separator between search and main content
+
                 # Sidebar filters
                 st.sidebar.header("🔍 Filters")
 
@@ -544,17 +593,6 @@ if __name__ == "__main__":
                 total_investors = len(filtered_investor_summary)
                 total_funding_tracked = filtered_investor_summary['Total Invested'].sum()
                 avg_investment_per_investor = total_funding_tracked / total_investors if total_investors > 0 else 0
-
-                # Format total funding to be human-readable
-                def format_currency(amount):
-                    if amount >= 1_000_000_000:
-                        return f"${amount / 1_000_000_000:.1f}B"
-                    elif amount >= 1_000_000:
-                        return f"${amount / 1_000_000:.1f}M"
-                    elif amount >= 1_000:
-                        return f"${amount / 1_000:.1f}K"
-                    else:
-                        return f"${amount:.0f}"
 
                 # Display KPI metrics
                 with col1:

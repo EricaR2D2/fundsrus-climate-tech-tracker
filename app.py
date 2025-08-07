@@ -671,6 +671,46 @@ if __name__ == "__main__":
                 # Display filtered investor info
                 st.write(f"📊 **Showing {len(filtered_investor_summary)} investors**")
 
+                # Alphabetical navigation bar
+                st.subheader("🔤 Browse by Name")
+
+                # Define the alphabet cluster groups
+                alphabet_clusters = ["All", "A-C", "D-F", "G-I", "J-L", "M-O", "P-R", "S-U", "V-Z", "#"]
+
+                # Initialize the selected cluster in session_state if it doesn't exist
+                if 'selected_cluster' not in st.session_state:
+                    st.session_state.selected_cluster = "All"
+
+                # Create a horizontal layout for the navigation buttons using st.columns
+                cols = st.columns(len(alphabet_clusters))
+                for i, cluster in enumerate(alphabet_clusters):
+                    # Highlight the selected cluster with a different style
+                    if cluster == st.session_state.selected_cluster:
+                        if cols[i].button(f"**{cluster}**", key=f"btn_{cluster}", help=f"Currently showing: {cluster}"):
+                            st.session_state.selected_cluster = cluster
+                    else:
+                        if cols[i].button(cluster, key=f"btn_{cluster}"):
+                            st.session_state.selected_cluster = cluster
+
+                # Filter the investor_summary DataFrame based on the selected cluster
+                selected = st.session_state.selected_cluster
+                if selected != "All":
+                    if selected == "#":
+                        # Logic for investors not starting with a letter
+                        filtered_investors = filtered_investor_summary[~filtered_investor_summary['Investor Name'].str[0].str.isalpha()]
+                    else:
+                        # Logic for letter-based clusters
+                        start_char, end_char = selected.split('-')
+                        filtered_investors = filtered_investor_summary[
+                            filtered_investor_summary['Investor Name'].str.upper().str[0].between(start_char, end_char)
+                        ]
+                else:
+                    # If "All" is selected, use the full (sidebar-filtered) DataFrame
+                    filtered_investors = filtered_investor_summary
+
+                # Update the display count to reflect alphabetical filtering
+                st.write(f"📊 **Showing {len(filtered_investors)} investors** (filtered by: {selected})")
+
                 # Add view toggle for different display formats
                 view_option = st.radio(
                     "Choose your view:",
@@ -680,12 +720,12 @@ if __name__ == "__main__":
                 )
 
                 # Create investor display based on selected view
-                if not filtered_investor_summary.empty:
+                if not filtered_investors.empty:
                     if view_option == "📋 Card View":
                         st.write("💡 **Tip**: Scan the cards below to quickly identify investors that match your criteria:")
 
                         # Create rich investor cards
-                        for idx, row in filtered_investor_summary.iterrows():
+                        for idx, row in filtered_investors.iterrows():
                             investor_name = row['Investor Name']
                             deals_done = row['Deals Done']
                             lead_deals = row['Lead Deals']
@@ -730,7 +770,7 @@ if __name__ == "__main__":
                         st.write("Click on an investor name to view their detailed profile:")
 
                         # Create buttons for each investor (original format)
-                        for idx, row in filtered_investor_summary.iterrows():
+                        for idx, row in filtered_investors.iterrows():
                             investor_name = row['Investor Name']
                             deals_done = row['Deals Done']
                             lead_deals = row['Lead Deals']
@@ -752,8 +792,8 @@ if __name__ == "__main__":
                     pd.set_option('display.width', None)
                     pd.set_option('display.max_colwidth', 100)
 
-                    # Use the filtered investor summary DataFrame
-                    display_df = filtered_investor_summary.copy()
+                    # Use the alphabetically filtered investor DataFrame
+                    display_df = filtered_investors.copy()
 
                     # Format the Total Invested column using our helper function
                     if not display_df.empty:
@@ -885,6 +925,7 @@ if __name__ == "__main__":
     if not df.empty:
         last_updated_date = df['Funding Date'].max().strftime("%B %d, %Y")
         st.caption(f"Data sourced from public announcements. Last updated: {last_updated_date}")
+
 
 
 

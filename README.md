@@ -4,15 +4,18 @@
 
 ## Overview
 
-FundsRUS is a climate tech funding intelligence platform that aggregates and visualizes funding data for climate technology startups. Our mission is to illuminate the funding landscape that's powering our planet's sustainable future.
+FundsRUS is the most effective investor research tool for early-stage climate tech founders. We transform scattered funding data into actionable intelligence, helping founders identify the right investors with conviction signals, geographic focus, and stage-appropriate deal sizes. Our mission is to illuminate the funding landscape that's powering our planet's sustainable future.
 
 ## Features
 
-- 🔍 **Smart Filtering**: Filter by funding stage, date range, company name, and climate vertical
-- 📊 **Clean Data Visualization**: Professional dashboard with optimized column display
+- 🏦 **Investor-Centric Database**: Browse active climate tech investors with detailed profiles and deal history
+- 🎯 **Advanced Fundraising Filters**: Lead investors only, geography targeting, and stage-relevant deal sizes
+- 🔍 **Quick Company Search**: Instantly find who funded any company with "Who funded this company?" search
+- 📊 **Conviction Signals**: Track lead vs. follow behavior to identify investors with strong conviction
+- 🌍 **Geographic Intelligence**: Filter investors by North America, Europe, or global focus
+- 💰 **Stage-Appropriate Targeting**: Deal size buckets aligned with funding stages (Seed, Series A, Series B+)
+- 📈 **Interactive Profiles**: Click any investor to see their complete deal history and investment patterns
 - 🌱 **Climate Focus**: Specialized tracking for climate tech and sustainability startups
-- 💰 **Funding Intelligence**: Track amounts, investors, and funding rounds
-- 🎯 **User-Friendly Interface**: Intuitive Streamlit-based dashboard
 
 ## Tech Stack
 
@@ -62,11 +65,18 @@ The platform processes funding data with the following fields:
 
 ## Usage
 
-1. **Browse All Data**: View the complete dataset in the main table
-2. **Filter by Stage**: Use the sidebar to filter by funding stage (Seed, Series A, etc.)
-3. **Date Range**: Select specific time periods for analysis
-4. **Search Companies**: Find specific companies using the search functionality
-5. **Climate Verticals**: Filter by specific climate tech categories
+### For Fundraising Founders:
+1. **Quick Research**: Use "Who funded this company?" to instantly find investors for competitors
+2. **Target Lead Investors**: Check "Lead Investors Only" to focus on investors who actually write lead checks
+3. **Geographic Targeting**: Filter by your target geography (North America, Europe, etc.)
+4. **Stage-Appropriate Search**: Use deal size buckets to find investors active in your funding stage
+5. **Deep Dive**: Click any investor to see their complete deal history and investment patterns
+6. **Conviction Analysis**: Review lead deal counts to identify investors with strong conviction signals
+
+### For Investors & Analysts:
+1. **Market Intelligence**: Browse the complete investor database with advanced filtering
+2. **Competitive Analysis**: Track peer investor activity and investment patterns
+3. **Deal Flow**: Monitor funding activity across climate verticals and stages
 
 ## Business Model
 
@@ -74,13 +84,14 @@ The platform processes funding data with the following fields:
 - **Professional**: Investment teams - $99/month  
 - **Enterprise**: Institutions with API access - Custom pricing
 
-## Roadmap
+## Future Work
 
-- [ ] AI-powered funding predictions
-- [ ] Real-time data integration
-- [ ] Advanced analytics dashboard
-- [ ] Mobile application
-- [ ] API for enterprise clients
+The goal is to make this the most effective investor research tool for early-stage climate tech founders.
+
+1. **Identify the Partner:** Use advanced NLP to extract the specific partner at the VC firm who led the deal from the source articles. This is the ultimate actionable insight.
+2. **Integrate LinkedIn/Socials:** Add links to the VC firm's and partner's LinkedIn profiles to facilitate research for warm introductions.
+3. **"Investor Has a Thesis In..." Alerts:** Allow founders to set up alerts for when an investor on their target list funds a new company in their specific vertical, signaling an active investment thesis.
+4. **Full Automation Pipeline:** Implement the full RSS → AI Classifier → AI Extractor → Database pipeline to ensure the data is always up-to-date.
 
 ## Contributing
 

@@ -1,5 +1,7 @@
+
 import streamlit as st
 import pandas as pd
+import math
 
 # Configure Streamlit page for wide layout and better visibility
 st.set_page_config(
@@ -86,6 +88,12 @@ def load_data(filepath):
         # Convert 'Funding Date' column to datetime objects
         df['Funding Date'] = pd.to_datetime(df['Funding Date'])
 
+        # Clean Amount column - replace infinite and NaN values with 0
+        if 'Amount' in df.columns:
+            df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')  # Convert to numeric, NaN for invalid
+            df['Amount'] = df['Amount'].replace([float('inf'), -float('inf')], 0)  # Replace infinite with 0
+            df['Amount'] = df['Amount'].fillna(0)  # Replace NaN with 0
+
         return df
 
     except Exception as e:
@@ -149,7 +157,10 @@ def create_investor_summary(df, lead_only=False):
 
             if is_lead or (is_other and not lead_only):
                 investor_deals.append(row)
-                total_invested += row['Amount']
+                # Safely add amount, handling NaN and infinite values
+                amount = row['Amount']
+                if pd.notna(amount) and not math.isinf(amount):
+                    total_invested += amount
                 verticals.append(row['Climate Vertical'])
                 stages.append(row['Funding Stage'])
                 if is_lead:
@@ -287,14 +298,30 @@ def format_currency(amount):
     Returns:
         str: Formatted currency string
     """
+    # Handle NaN, None, and infinite values
+    if pd.isna(amount) or amount is None:
+        return "$0"
+    if math.isinf(amount):
+        return "N/A"
+
+    # Convert to float and handle any remaining edge cases
+    try:
+        amount = float(amount)
+    except (ValueError, TypeError):
+        return "$0"
+
+    # Handle negative values
+    if amount < 0:
+        return f"-{format_currency(abs(amount))}"
+
+    # Format based on magnitude
     if amount >= 1_000_000_000:
         return f"${amount / 1_000_000_000:.1f}B"
-    elif amount >= 1_000_000:
+    if amount >= 1_000_000:
         return f"${amount / 1_000_000:.1f}M"
-    elif amount >= 1_000:
+    if amount >= 1_000:
         return f"${amount / 1_000:.1f}K"
-    else:
-        return f"${amount:.0f}"
+    return f"${amount:.0f}"
 
 def display_investor_profile(df, investor_name):
     """
@@ -327,27 +354,10 @@ def display_investor_profile(df, investor_name):
     verticals = investor_deals_df['Climate Vertical'].value_counts()
     stages = investor_deals_df['Funding Stage'].value_counts()
 
-    # Display KPIs
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(
-            label="Total Deals",
-            value=f"{total_deals:,}"
-        )
-
-    with col2:
-        st.metric(
-            label="Total Investment Tracked",
-            value=format_currency(total_invested)
-        )
-
-    with col3:
-        avg_deal_size = total_invested / total_deals if total_deals > 0 else 0
-        st.metric(
-            label="Avg. Deal Size",
-            value=format_currency(avg_deal_size)
-        )
+    # Display KPIs using st.metric for a professional dashboard feel
+    col1, col2 = st.columns(2)
+    col1.metric(label="Deals Done", value=total_deals)
+    col2.metric(label="Total Capital Deployed (in their deals)", value=format_currency(total_invested))
 
     # Display preferred verticals and stages
     col1, col2 = st.columns(2)
@@ -378,6 +388,9 @@ def display_investor_profile(df, investor_name):
         'Funding Stage', 'Climate Vertical', 'Role', 'Source URL'
     ]].copy()
 
+    # Format the Amount column using our helper function
+    deals_display['Amount'] = deals_display['Amount'].apply(format_currency)
+
     # Display the deals table
     st.dataframe(
         deals_display,
@@ -393,9 +406,8 @@ def display_investor_profile(df, investor_name):
                 format="YYYY-MM-DD",
                 width="small"
             ),
-            "Amount": st.column_config.NumberColumn(
+            "Amount": st.column_config.TextColumn(
                 "Amount",
-                format="$%.0f",
                 width="medium"
             ),
             "Currency": st.column_config.TextColumn(
@@ -496,7 +508,7 @@ if __name__ == "__main__":
                 st.divider()  # Visual separator between search and main content
 
                 # Sidebar filters
-                st.sidebar.header("🔍 Filters")
+                st.sidebar.header("🎯 Build Your Investor Target List")
 
                 # Advanced Filters Section
                 st.sidebar.subheader("🎯 Advanced Filters")
@@ -552,6 +564,25 @@ if __name__ == "__main__":
                     placeholder="e.g., Breakthrough Energy Ventures"
                 )
 
+                # Check if any filters have been applied (for contextual welcome message)
+                filters_applied = (
+                    lead_only or  # Lead investors only is checked
+                    selected_geography != "All" or  # Geography filter is not "All"
+                    selected_deal_size != "All" or  # Deal size filter is not "All"
+                    len(selected_verticals) != len(climate_verticals) or  # Not all verticals selected
+                    selected_stage != "All" or  # Funding stage filter is not "All"
+                    investor_search.strip() != "" or  # Investor name search has text
+                    company_search.strip() != ""  # Company search has text
+                )
+
+                # Display contextual welcome message for new users
+                if not filters_applied:
+                    st.info(
+                        "👋 **Welcome, Founder!** Start by using the filters on the left to build your ideal investor profile. "
+                        "Try filtering by geography, deal size, or climate vertical to find investors that match your startup's needs.",
+                        icon="💡"
+                    )
+
                 # Filter the deals DataFrame first to get relevant investors
                 filtered_deals_df = df.copy()
 
@@ -591,7 +622,8 @@ if __name__ == "__main__":
 
                 # Calculate KPIs from filtered investor data
                 total_investors = len(filtered_investor_summary)
-                total_funding_tracked = filtered_investor_summary['Total Invested'].sum()
+                # Safely calculate total funding, handling any infinite or NaN values
+                total_funding_tracked = filtered_investor_summary['Total Invested'].replace([float('inf'), -float('inf')], 0).fillna(0).sum()
                 avg_investment_per_investor = total_funding_tracked / total_investors if total_investors > 0 else 0
 
                 # Display KPI metrics
@@ -618,10 +650,18 @@ if __name__ == "__main__":
 
                 if not filtered_investor_summary.empty:
                     # Get top 10 investors by total invested
-                    top_investors = filtered_investor_summary.head(10).set_index('Investor Name')['Total Invested']
-
-                    # Create bar chart
-                    st.bar_chart(top_investors)
+                    top_investors_data = filtered_investor_summary.head(10)
+                    
+                    # Create a DataFrame for the chart with formatted labels
+                    chart_data = top_investors_data.set_index('Investor Name')['Total Invested']
+                    
+                    # Display the chart
+                    st.bar_chart(chart_data)
+                    
+                    # Add a formatted summary below the chart
+                    st.write("**Top 5 Investors:**")
+                    for idx, (investor, amount) in enumerate(chart_data.head(5).items(), 1):
+                        st.write(f"{idx}. **{investor}**: {format_currency(amount)}")
                 else:
                     st.info("No investors found for the selected filters.")
 
@@ -631,69 +671,169 @@ if __name__ == "__main__":
                 # Display filtered investor info
                 st.write(f"📊 **Showing {len(filtered_investor_summary)} investors**")
 
-                # Create clickable investor list
-                if not filtered_investor_summary.empty:
-                    st.write("Click on an investor name to view their detailed profile:")
-
-                    # Create buttons for each investor
-                    for idx, row in filtered_investor_summary.iterrows():
-                        investor_name = row['Investor Name']
-                        deals_done = row['Deals Done']
-                        lead_deals = row['Lead Deals']
-                        total_invested = row['Total Invested']
-
-                        # Format the button label with key info including lead deals
-                        button_label = f"👤 {investor_name} | {deals_done} deals ({lead_deals} lead) | {format_currency(total_invested)}"
-
-                        if st.button(button_label, key=f"investor_{idx}"):
-                            st.session_state.selected_investor = investor_name
-                            st.rerun()
-
-                # Also display the summary table for reference
-                st.subheader("Investor Summary Table")
-
-                # Configure pandas display options for better visibility
-                pd.set_option('display.max_columns', None)
-                pd.set_option('display.width', None)
-                pd.set_option('display.max_colwidth', 100)
-
-                # Use the filtered investor summary DataFrame
-                display_df = filtered_investor_summary
-
-                # Display the investor summary DataFrame with enhanced formatting
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,  # Use full container width
-                    height=400,  # Reduced height since we have buttons above
-                    column_config={
-                        "Investor Name": st.column_config.TextColumn(
-                            "Investor Name",
-                            width="large"
-                        ),
-                        "Deals Done": st.column_config.NumberColumn(
-                            "Deals Done",
-                            width="small"
-                        ),
-                        "Lead Deals": st.column_config.NumberColumn(
-                            "Lead Deals",
-                            width="small",
-                            help="Number of deals where this investor was the lead - key conviction signal"
-                        ),
-                        "Total Invested": st.column_config.NumberColumn(
-                            "Total Invested",
-                            format="$%.0f",
-                            width="medium"
-                        ),
-                        "Preferred Verticals": st.column_config.TextColumn(
-                            "Preferred Verticals",
-                            width="large"
-                        ),
-                        "Preferred Stages": st.column_config.TextColumn(
-                            "Preferred Stages",
-                            width="medium"
-                        )
-                    }
+                # Add view toggle for different display formats
+                view_option = st.radio(
+                    "Choose your view:",
+                    ["📋 Card View", "📊 Table View"],
+                    horizontal=True,
+                    help="Card view is better for scanning, table view is better for detailed comparison"
                 )
+
+                # Create investor display based on selected view
+                if not filtered_investor_summary.empty:
+                    if view_option == "📋 Card View":
+                        st.write("💡 **Tip**: Scan the cards below to quickly identify investors that match your criteria:")
+
+                        # Create rich investor cards
+                        for idx, row in filtered_investor_summary.iterrows():
+                            investor_name = row['Investor Name']
+                            deals_done = row['Deals Done']
+                            lead_deals = row['Lead Deals']
+                            total_invested = row['Total Invested']
+                            preferred_verticals = row['Preferred Verticals'].split(', ') if row['Preferred Verticals'] else []
+                            preferred_stages = row['Preferred Stages'].split(', ') if row['Preferred Stages'] else []
+
+                            # Create horizontal rule to separate cards
+                            st.markdown("---")
+
+                            # Create card layout with columns
+                            col1, col2 = st.columns([3, 1])
+
+                            with col1:
+                                # Investor name as subheader
+                                st.subheader(f"🏦 {investor_name}")
+
+                                # Create visual tags for preferred verticals
+                                if preferred_verticals and preferred_verticals[0]:
+                                    st.markdown("**🎯 Top Climate Verticals:**")
+                                    vertical_tags = " ".join([f"`{vertical.strip()}`" for vertical in preferred_verticals[:3] if vertical.strip()])
+                                    st.markdown(vertical_tags)
+
+                                # Create visual tags for preferred stages
+                                if preferred_stages and preferred_stages[0]:
+                                    st.markdown("**📈 Preferred Funding Stages:**")
+                                    stage_tags = " ".join([f"`{stage.strip()}`" for stage in preferred_stages[:3] if stage.strip()])
+                                    st.markdown(stage_tags)
+
+                            with col2:
+                                # Key metrics in the right column
+                                st.metric("Total Deals", deals_done)
+                                st.metric("Lead Deals", lead_deals, help="Deals where they were the lead investor")
+                                st.metric("Capital Deployed", format_currency(total_invested))
+
+                                # View profile button
+                                if st.button("👁️ View Profile", key=f"card_btn_{idx}", help="See detailed investor profile"):
+                                    st.session_state.selected_investor = investor_name
+                                    st.rerun()
+
+                    else:  # Table View
+                        st.write("Click on an investor name to view their detailed profile:")
+
+                        # Create buttons for each investor (original format)
+                        for idx, row in filtered_investor_summary.iterrows():
+                            investor_name = row['Investor Name']
+                            deals_done = row['Deals Done']
+                            lead_deals = row['Lead Deals']
+                            total_invested = row['Total Invested']
+
+                            # Format the button label with key info including lead deals
+                            button_label = f"👤 {investor_name} | {deals_done} deals ({lead_deals} lead) | {format_currency(total_invested)}"
+
+                            if st.button(button_label, key=f"investor_{idx}"):
+                                st.session_state.selected_investor = investor_name
+                                st.rerun()
+
+                # Display interactive table only in Table View
+                if view_option == "📊 Table View":
+                    st.subheader("Interactive Investor Table")
+
+                    # Configure pandas display options for better visibility
+                    pd.set_option('display.max_columns', None)
+                    pd.set_option('display.width', None)
+                    pd.set_option('display.max_colwidth', 100)
+
+                    # Use the filtered investor summary DataFrame
+                    display_df = filtered_investor_summary.copy()
+
+                    # Format the Total Invested column using our helper function
+                    if not display_df.empty:
+                        display_df['Total Invested'] = display_df['Total Invested'].apply(format_currency)
+
+                        # Add a 'Select' column with checkboxes for building target list
+                        display_df.insert(0, 'Select', False)
+
+                    # Display the investor summary DataFrame with interactive checkboxes
+                    st.write("💡 **Tip**: Check the boxes next to investors you want to target, then export your list!")
+
+                    edited_df = st.data_editor(
+                        display_df,
+                        use_container_width=True,  # Use full container width
+                        height=400,  # Reduced height since we have buttons above
+                        column_config={
+                            "Select": st.column_config.CheckboxColumn(
+                                "Select",
+                                help="Check to add this investor to your target list",
+                                width="small"
+                            ),
+                            "Investor Name": st.column_config.TextColumn(
+                                "Investor Name",
+                                width="large"
+                            ),
+                            "Deals Done": st.column_config.NumberColumn(
+                                "Deals Done",
+                                width="small"
+                            ),
+                            "Lead Deals": st.column_config.NumberColumn(
+                                "Lead Deals",
+                                width="small",
+                                help="Number of deals where this investor was the lead - key conviction signal"
+                            ),
+                            "Total Invested": st.column_config.TextColumn(
+                                "Total Invested",
+                                width="medium"
+                            ),
+                            "Preferred Verticals": st.column_config.TextColumn(
+                                "Preferred Verticals",
+                                width="large"
+                            ),
+                            "Preferred Stages": st.column_config.TextColumn(
+                                "Preferred Stages",
+                                width="medium"
+                            )
+                        },
+                        disabled=["Investor Name", "Deals Done", "Lead Deals", "Total Invested", "Preferred Verticals", "Preferred Stages"],
+                        hide_index=True
+                    )
+
+                    # Check which investors were selected and provide export functionality
+                    if not edited_df.empty:
+                        selected_investors = edited_df[edited_df['Select'] == True]
+
+                        if len(selected_investors) > 0:
+                            st.success(f"🎯 **{len(selected_investors)} investors selected for your target list!**")
+
+                            # Prepare the export data (remove the Select column for cleaner export)
+                            export_df = selected_investors.drop('Select', axis=1)
+
+                            # Convert DataFrame to CSV
+                            csv_data = export_df.to_csv(index=False)
+
+                            # Create download button
+                            st.download_button(
+                                label="📥 Export Selected Investors to CSV",
+                                data=csv_data,
+                                file_name=f"target_investors_{len(selected_investors)}_selected.csv",
+                                mime="text/csv",
+                                help="Download your selected investors as a CSV file for outreach planning"
+                            )
+
+                            # Show a preview of selected investors
+                            with st.expander(f"Preview of {len(selected_investors)} Selected Investors"):
+                                st.dataframe(export_df, use_container_width=True)
+                        else:
+                            st.info("💡 Select investors using the checkboxes above to build your target list and export to CSV.")
+                    else:
+                        st.info("No investors found for the selected filters.")
 
         with tab2:
             # Glossary Tab Content
@@ -740,3 +880,15 @@ if __name__ == "__main__":
 
     else:
         st.warning("No data to display. Please check your data.json file.")
+
+    # Add data freshness caption to build trust
+    if not df.empty:
+        last_updated_date = df['Funding Date'].max().strftime("%B %d, %Y")
+        st.caption(f"Data sourced from public announcements. Last updated: {last_updated_date}")
+
+
+
+
+
+
+

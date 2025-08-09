@@ -102,213 +102,166 @@ if __name__ == "__main__":
 
     # Check if data was loaded successfully
     if not df.empty:
-        # Create main tabs
-        tab1, tab2 = st.tabs(["Funding Tracker", "Glossary"])
+        # Sidebar filters
+        st.sidebar.header("Filters")
 
-        with tab1:
-            # Sidebar filters
-            st.sidebar.header("Filters")
+        # Climate Vertical multi-select filter
+        climate_verticals = df['Climate Vertical'].unique().tolist()
+        selected_verticals = st.sidebar.multiselect(
+            "Climate Vertical",
+            options=climate_verticals,
+            default=climate_verticals  # Show all by default
+        )
 
-            # Climate Vertical multi-select filter
-            climate_verticals = df['Climate Vertical'].unique().tolist()
-            selected_verticals = st.sidebar.multiselect(
-                "Climate Vertical",
-                options=climate_verticals,
-                default=climate_verticals  # Show all by default
+        # Funding Stage select box filter
+        funding_stages = ["All"] + df['Funding Stage'].unique().tolist()
+        selected_stage = st.sidebar.selectbox(
+            "Funding Stage",
+            options=funding_stages,
+            index=0  # Default to "All"
+        )
+
+        # Investor Name text input filter
+        investor_search = st.sidebar.text_input(
+            "Investor Name",
+            placeholder="e.g., Breakthrough Energy Ventures"
+        )
+
+        # Filter the DataFrame based on user selections
+        filtered_df = df.copy()
+
+        # Apply Climate Vertical filter
+        if selected_verticals:
+            filtered_df = filtered_df[filtered_df['Climate Vertical'].isin(selected_verticals)]
+
+        # Apply Funding Stage filter
+        if selected_stage != "All":
+            filtered_df = filtered_df[filtered_df['Funding Stage'] == selected_stage]
+
+        # Apply Investor Name filter (case-insensitive search in both investor columns)
+        if investor_search:
+            investor_mask = (
+                filtered_df['Lead Investor(s)'].str.contains(investor_search, case=False, na=False) |
+                filtered_df['Other Investors'].str.contains(investor_search, case=False, na=False)
             )
+            filtered_df = filtered_df[investor_mask]
 
-            # Funding Stage select box filter
-            funding_stages = ["All"] + df['Funding Stage'].unique().tolist()
-            selected_stage = st.sidebar.selectbox(
-                "Funding Stage",
-                options=funding_stages,
-                index=0  # Default to "All"
-            )
+        # KPI Dashboard Section
+        st.subheader("📊 Dashboard Overview")
 
-            # Investor Name text input filter
-            investor_search = st.sidebar.text_input(
-                "Investor Name",
-                placeholder="e.g., Breakthrough Energy Ventures"
-            )
+        # Create 3 columns for KPI metrics
+        col1, col2, col3 = st.columns(3)
 
-            # Filter the DataFrame based on user selections
-            filtered_df = df.copy()
+        # Calculate KPIs from filtered data
+        total_funding = filtered_df['Amount'].sum()
+        num_deals = len(filtered_df)
+        avg_deal_size = total_funding / num_deals if num_deals > 0 else 0
 
-            # Apply Climate Vertical filter
-            if selected_verticals:
-                filtered_df = filtered_df[filtered_df['Climate Vertical'].isin(selected_verticals)]
-
-            # Apply Funding Stage filter
-            if selected_stage != "All":
-                filtered_df = filtered_df[filtered_df['Funding Stage'] == selected_stage]
-
-            # Apply Investor Name filter (case-insensitive search in both investor columns)
-            if investor_search:
-                investor_mask = (
-                    filtered_df['Lead Investor(s)'].str.contains(investor_search, case=False, na=False) |
-                    filtered_df['Other Investors'].str.contains(investor_search, case=False, na=False)
-                )
-                filtered_df = filtered_df[investor_mask]
-
-            # KPI Dashboard Section
-            st.subheader("📊 Dashboard Overview")
-
-            # Create 3 columns for KPI metrics
-            col1, col2, col3 = st.columns(3)
-
-            # Calculate KPIs from filtered data
-            total_funding = filtered_df['Amount'].sum()
-            num_deals = len(filtered_df)
-            avg_deal_size = total_funding / num_deals if num_deals > 0 else 0
-
-            # Format total funding to be human-readable
-            def format_currency(amount):
-                if amount >= 1_000_000_000:
-                    return f"${amount / 1_000_000_000:.1f}B"
-                elif amount >= 1_000_000:
-                    return f"${amount / 1_000_000:.1f}M"
-                elif amount >= 1_000:
-                    return f"${amount / 1_000:.1f}K"
-                else:
-                    return f"${amount:.0f}"
-
-            # Display KPI metrics
-            with col1:
-                st.metric(
-                    label="Total Funding Raised",
-                    value=format_currency(total_funding)
-                )
-
-            with col2:
-                st.metric(
-                    label="Number of Deals",
-                    value=f"{num_deals:,}"
-                )
-
-            with col3:
-                st.metric(
-                    label="Average Deal Size",
-                    value=format_currency(avg_deal_size)
-                )
-
-            # Funding by Vertical Chart
-            st.subheader("Funding by Vertical")
-
-            if not filtered_df.empty:
-                # Group by Climate Vertical and sum the amounts
-                vertical_funding = filtered_df.groupby('Climate Vertical')['Amount'].sum().sort_values(ascending=False)
-
-                # Create bar chart
-                st.bar_chart(vertical_funding)
+        # Format total funding to be human-readable
+        def format_currency(amount):
+            if amount >= 1_000_000_000:
+                return f"${amount / 1_000_000_000:.1f}B"
+            elif amount >= 1_000_000:
+                return f"${amount / 1_000_000:.1f}M"
+            elif amount >= 1_000:
+                return f"${amount / 1_000:.1f}K"
             else:
-                st.info("No data available for the selected filters.")
+                return f"${amount:.0f}"
 
-            # Add subheader for the data table
-            st.subheader("Recent Funding Events")
-
-            # Display filtered data info
-            st.write(f"📊 **Showing {len(filtered_df)} of {len(df)} funding events**")
-
-            # Configure pandas display options for better visibility
-            pd.set_option('display.max_columns', None)
-            pd.set_option('display.width', None)
-            pd.set_option('display.max_colwidth', 100)
-
-            # Use the filtered DataFrame directly
-            display_df = filtered_df
-
-            # Display the filtered DataFrame with enhanced formatting
-            st.dataframe(
-                display_df,
-                use_container_width=True,  # Use full container width
-                height=600,  # Set a good height to show more rows
-                column_config={
-                    "Company Name": st.column_config.TextColumn(
-                        "Company Name",
-                        width="medium"
-                    ),
-                    "Funding Date": st.column_config.DateColumn(
-                        "Funding Date",
-                        format="YYYY-MM-DD",
-                        width="small"
-                    ),
-                    "Amount": st.column_config.NumberColumn(
-                        "Amount",
-                        width="medium"
-                    ),
-                    "Currency": st.column_config.TextColumn(
-                        "Currency",
-                        width="small"
-                    ),
-                    "Funding Stage": st.column_config.TextColumn(
-                        "Funding Stage",
-                        width="medium"
-                    ),
-                    "Lead Investor(s)": st.column_config.TextColumn(
-                        "Lead Investor(s)",
-                        width="large"
-                    ),
-                    "Other Investors": st.column_config.TextColumn(
-                        "Other Investors",
-                        width="large"
-                    ),
-                    "Climate Vertical": st.column_config.TextColumn(
-                        "Climate Vertical",
-                        width="medium"
-                    ),
-                    "Company Description": st.column_config.TextColumn(
-                        "Company Description",
-                        width="large"
-                    ),
-                    "Source URL": st.column_config.LinkColumn(
-                        "Source URL",
-                        width="small"
-                    )
-                }
+        # Display KPI metrics
+        with col1:
+            st.metric(
+                label="Total Funding Raised",
+                value=format_currency(total_funding)
             )
 
-        with tab2:
-            # Glossary Tab Content
-            st.header("📚 Key Terminology")
+        with col2:
+            st.metric(
+                label="Number of Deals",
+                value=f"{num_deals:,}"
+            )
 
-            st.subheader("Pre-Seed/Seed Round")
-            st.write("""
-            **Pre-Seed** and **Seed** rounds are the earliest stages of startup funding. Pre-seed typically involves
-            initial capital from founders, friends, and family to validate the business idea. Seed rounds follow,
-            providing funding to develop the product, conduct market research, and build an initial team.
-            These rounds usually range from $50K to $2M.
-            """)
+        with col3:
+            st.metric(
+                label="Average Deal Size",
+                value=format_currency(avg_deal_size)
+            )
 
-            st.subheader("Series A, B, C")
-            st.write("""
-            **Series A, B, C** represent sequential funding rounds as startups grow:
+        # Funding by Vertical Chart
+        st.subheader("Funding by Vertical")
 
-            - **Series A**: First major institutional funding round (typically $2M-$15M) to scale the product and expand the team
-            - **Series B**: Growth funding (typically $10M-$50M) to expand market reach and accelerate revenue
-            - **Series C**: Later-stage funding (typically $30M+) for market expansion, acquisitions, or preparing for IPO
-            """)
+        if not filtered_df.empty:
+            # Group by Climate Vertical and sum the amounts
+            vertical_funding = filtered_df.groupby('Climate Vertical')['Amount'].sum().sort_values(ascending=False)
 
-            st.subheader("Venture Capital (VC)")
-            st.write("""
-            **Venture Capital (VC)** refers to investment firms that provide funding to high-growth startups in exchange
-            for equity ownership. VCs typically invest in companies with strong growth potential and aim for significant
-            returns through eventual exits (IPO or acquisition). They often provide mentorship and strategic guidance
-            beyond just capital.
-            """)
+            # Create bar chart
+            st.bar_chart(vertical_funding)
+        else:
+            st.info("No data available for the selected filters.")
 
-            st.subheader("Lead Investor")
-            st.write("""
-            The **Lead Investor** is the primary investor in a funding round who typically contributes the largest
-            portion of capital and takes the lead in negotiating terms, conducting due diligence, and structuring
-            the deal. They often secure a board seat and play an active role in guiding the company's strategic direction.
-            """)
+        # Add subheader for the data table
+        st.subheader("Recent Funding Events")
 
-            st.subheader("Climate Vertical")
-            st.write("""
-            **Climate Vertical** refers to specific sectors within the climate technology space, such as renewable energy,
-            carbon capture, sustainable transportation, or green agriculture. Each vertical addresses different aspects
-            of climate change mitigation or adaptation, allowing investors to focus on particular areas of environmental impact.
-            """)
+        # Display filtered data info
+        st.write(f"📊 **Showing {len(filtered_df)} of {len(df)} funding events**")
+
+        # Configure pandas display options for better visibility
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        pd.set_option('display.max_colwidth', 100)
+
+        # Use the filtered DataFrame directly
+        display_df = filtered_df
+
+        # Display the filtered DataFrame with enhanced formatting
+        st.dataframe(
+            display_df,
+            use_container_width=True,  # Use full container width
+            height=600,  # Set a good height to show more rows
+            column_config={
+                "Company Name": st.column_config.TextColumn(
+                    "Company Name",
+                    width="medium"
+                ),
+                "Funding Date": st.column_config.DateColumn(
+                    "Funding Date",
+                    format="YYYY-MM-DD",
+                    width="small"
+                ),
+                "Amount": st.column_config.NumberColumn(
+                    "Amount",
+                    width="medium"
+                ),
+                "Currency": st.column_config.TextColumn(
+                    "Currency",
+                    width="small"
+                ),
+                "Funding Stage": st.column_config.TextColumn(
+                    "Funding Stage",
+                    width="medium"
+                ),
+                "Lead Investor(s)": st.column_config.TextColumn(
+                    "Lead Investor(s)",
+                    width="large"
+                ),
+                "Other Investors": st.column_config.TextColumn(
+                    "Other Investors",
+                    width="large"
+                ),
+                "Climate Vertical": st.column_config.TextColumn(
+                    "Climate Vertical",
+                    width="medium"
+                ),
+                "Company Description": st.column_config.TextColumn(
+                    "Company Description",
+                    width="large"
+                ),
+                "Source URL": st.column_config.LinkColumn(
+                    "Source URL",
+                    width="small"
+                )
+            }
+        )
 
     else:
         st.warning("No data to display. Please check your data.json file.")

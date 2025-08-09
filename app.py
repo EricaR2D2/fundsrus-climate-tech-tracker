@@ -4,7 +4,7 @@ import pandas as pd
 import math
 import requests
 from bs4 import BeautifulSoup
-import openai
+import google.generativeai as genai
 import json
 
 # Configure Streamlit page for wide layout and better visibility
@@ -314,30 +314,52 @@ def extract_data_with_ai(url):
         if not article_text:
             return {"error": "Could not extract text from the article."}
 
-        # Step B: Call the OpenAI API
-        system_prompt = """
+        # Step B: Call the Google Gemini API
+        prompt = """
         You are an expert financial analyst. Extract the following information from the article text provided.
-        Respond ONLY with a valid JSON object. If information is not found, use null.
-        The schema is: {"companyName": "string", "amount": integer, "currency": "string", "fundingStage": "string", "leadInvestors": ["string"], "otherInvestors": ["string"], "climateVertical": "string"}
-        """
+        Respond ONLY with a valid JSON object. Do not include any explanatory text before or after the JSON.
+        If information is not found, use null.
 
-        # Check if OpenAI API key is available
-        if "OPENAI_API_KEY" not in st.secrets:
-            return {"error": "OpenAI API key not configured. Please add OPENAI_API_KEY to Streamlit secrets."}
+        Required JSON schema:
+        {
+            "companyName": "string or null",
+            "amount": "number or null",
+            "currency": "string or null",
+            "fundingStage": "string or null",
+            "leadInvestors": ["array of strings or null"],
+            "otherInvestors": ["array of strings or null"],
+            "climateVertical": "string or null"
+        }
 
-        openai.api_key = st.secrets["OPENAI_API_KEY"]
+        Article text:
+        """ + article_text[:8000]  # Gemini has larger context window
 
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": article_text[:4000]}  # Truncate to fit model context limit
-            ]
-        )
+        # Check if Google API key is available
+        if "GOOGLE_API_KEY" not in st.secrets:
+            return {"error": "Google API key not configured. Please add GOOGLE_API_KEY to Streamlit secrets."}
+
+        # Configure Google Generative AI
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
+        response = model.generate_content(prompt)
+
+        # Check if response is valid
+        if not response or not response.text:
+            return {"error": "Empty response from AI model"}
+
+        # Clean the response text (remove any markdown formatting)
+        response_text = response.text.strip()
+        if response_text.startswith('```json'):
+            response_text = response_text.replace('```json', '').replace('```', '').strip()
+        elif response_text.startswith('```'):
+            response_text = response_text.replace('```', '').strip()
 
         # Step C: Return the structured data
-        return json.loads(response.choices[0].message.content)
+        return json.loads(response_text)
 
+    except json.JSONDecodeError as e:
+        return {"error": f"Failed to parse AI response as JSON: {str(e)}. Raw response: {response.text[:500] if 'response' in locals() else 'No response'}"}
     except Exception as e:
         return {"error": f"An error occurred: {str(e)}"}
 

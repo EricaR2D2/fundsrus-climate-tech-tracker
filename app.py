@@ -321,11 +321,15 @@ def extract_data_with_ai(url):
         The schema is: {"companyName": "string", "amount": integer, "currency": "string", "fundingStage": "string", "leadInvestors": ["string"], "otherInvestors": ["string"], "climateVertical": "string"}
         """
 
-        # Check if OpenAI API key is available
-        if "OPENAI_API_KEY" not in st.secrets:
-            return {"error": "OpenAI API key not configured. Please add OPENAI_API_KEY to Streamlit secrets."}
+        # Check if OpenAI API key is available and valid
+        try:
+            api_key = st.secrets.get("OPENAI_API_KEY", "")
+            if not api_key or api_key == "your-openai-api-key-here":
+                return {"error": "OpenAI API key not configured. Please add a valid OPENAI_API_KEY to .streamlit/secrets.toml"}
+        except Exception:
+            return {"error": "No secrets found. Please create .streamlit/secrets.toml with OPENAI_API_KEY"}
 
-        openai.api_key = st.secrets["OPENAI_API_KEY"]
+        openai.api_key = api_key
 
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",

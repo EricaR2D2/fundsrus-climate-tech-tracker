@@ -2,6 +2,10 @@
 import streamlit as st
 import pandas as pd
 import math
+import requests
+from bs4 import BeautifulSoup
+import openai
+import json
 
 # Configure Streamlit page for wide layout and better visibility
 st.set_page_config(
@@ -287,6 +291,55 @@ def add_geography_column(df):
     )
 
     return df
+
+def extract_data_with_ai(url):
+    """
+    Extract funding data from a news article URL using AI.
+
+    Args:
+        url (str): URL of the news article
+
+    Returns:
+        dict: Extracted funding data or error message
+    """
+    try:
+        # Step A: Fetch and parse the article text
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Find the main article body (this might need tuning for different sites)
+        article_text = ' '.join(p.get_text() for p in soup.find_all('p'))
+
+        if not article_text:
+            return {"error": "Could not extract text from the article."}
+
+        # Step B: Call the OpenAI API
+        system_prompt = """
+        You are an expert financial analyst. Extract the following information from the article text provided.
+        Respond ONLY with a valid JSON object. If information is not found, use null.
+        The schema is: {"companyName": "string", "amount": integer, "currency": "string", "fundingStage": "string", "leadInvestors": ["string"], "otherInvestors": ["string"], "climateVertical": "string"}
+        """
+
+        # Check if OpenAI API key is available
+        if "OPENAI_API_KEY" not in st.secrets:
+            return {"error": "OpenAI API key not configured. Please add OPENAI_API_KEY to Streamlit secrets."}
+
+        openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": article_text[:4000]}  # Truncate to fit model context limit
+            ]
+        )
+
+        # Step C: Return the structured data
+        return json.loads(response.choices[0].message.content)
+
+    except Exception as e:
+        return {"error": f"An error occurred: {str(e)}"}
 
 def format_currency(amount):
     """
@@ -920,6 +973,22 @@ if __name__ == "__main__":
 
     else:
         st.warning("No data to display. Please check your data.json file.")
+
+    # AI Assistant Feature
+    st.markdown("---")
+    with st.expander("🤖 AI Assistant: Extract New Funding Deal"):
+        st.info("Paste the URL of a funding announcement article below to see the AI in action.", icon="💡")
+        url_input = st.text_input("Article URL")
+
+        if st.button("Extract Funding Data"):
+            if url_input:
+                with st.spinner("Reading article and calling AI... this may take a moment."):
+                    extracted_data = extract_data_with_ai(url_input)
+                    st.subheader("Extracted Data:")
+                    st.json(extracted_data)
+                    st.success("Extraction complete! This data can be added to the main database in a future version.")
+            else:
+                st.warning("Please enter a URL.")
 
     # Add data freshness caption to build trust
     if not df.empty:

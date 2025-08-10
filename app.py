@@ -343,7 +343,13 @@ def extract_data_with_ai(url):
         return json.loads(response.choices[0].message.content)
 
     except Exception as e:
-        return {"error": f"An error occurred: {str(e)}"}
+        error_msg = str(e)
+        if "429" in error_msg or "insufficient_quota" in error_msg or "quota" in error_msg.lower():
+            return {"error": "OpenAI API quota exceeded. Please check your billing at https://platform.openai.com/usage and add credits to your account."}
+        elif "401" in error_msg or "invalid" in error_msg.lower():
+            return {"error": "Invalid OpenAI API key. Please check your API key at https://platform.openai.com/api-keys"}
+        else:
+            return {"error": f"An error occurred: {error_msg}"}
 
 def format_currency(amount):
     """
@@ -988,9 +994,27 @@ if __name__ == "__main__":
             if url_input:
                 with st.spinner("Reading article and calling AI... this may take a moment."):
                     extracted_data = extract_data_with_ai(url_input)
-                    st.subheader("Extracted Data:")
-                    st.json(extracted_data)
-                    st.success("Extraction complete! This data can be added to the main database in a future version.")
+                    
+                    # Handle different types of errors
+                    if "error" in extracted_data:
+                        error_msg = extracted_data["error"]
+                        if "quota exceeded" in error_msg.lower():
+                            st.error("🚫 OpenAI API quota exceeded")
+                            st.markdown("""
+                            **To fix this:**
+                            1. Go to [OpenAI Usage Dashboard](https://platform.openai.com/usage)
+                            2. Check your current usage and limits
+                            3. Add credits at [OpenAI Billing](https://platform.openai.com/account/billing)
+                            4. Or upgrade your plan for higher limits
+                            
+                            **Note:** The core FundsRUS features work perfectly without the AI Assistant!
+                            """)
+                        else:
+                            st.error(f"❌ {error_msg}")
+                    else:
+                        st.subheader("✅ Extracted Data:")
+                        st.json(extracted_data)
+                        st.success("Extraction complete! This data can be added to the main database in a future version.")
             else:
                 st.warning("Please enter a URL.")
 

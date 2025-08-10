@@ -529,7 +529,7 @@ if __name__ == "__main__":
         df['Deal Size Category'] = df['Amount'].apply(categorize_deal_size)
 
         # Create main tabs
-        tab1, tab2 = st.tabs(["Investor Database", "Glossary"])
+        tab1, tab2, tab3 = st.tabs(["Investor Database", "AI Assistant", "Glossary"])
 
         with tab1:
             # Check if an investor is selected for profile view
@@ -951,6 +951,23 @@ if __name__ == "__main__":
                         st.info("No investors found for the selected filters.")
 
         with tab2:
+            # AI Assistant Tab Content
+            st.header("🤖 AI Assistant: Extract New Funding Deal")
+            st.info("Paste the URL of a funding announcement article below to see the AI in action.", icon="💡")
+
+            url_input = st.text_input("Article URL")
+
+            if st.button("Extract Funding Data"):
+                if url_input:
+                    with st.spinner("Reading article and calling AI... this may take a moment."):
+                        extracted_data = extract_data_with_ai(url_input)
+                        st.subheader("Extracted Data:")
+                        st.json(extracted_data)
+                        st.success("Extraction complete! This data can be added to the main database in a future version.")
+                else:
+                    st.warning("Please enter a URL.")
+
+        with tab3:
             # Glossary Tab Content
             st.header("📚 Key Terminology")
 
@@ -996,21 +1013,7 @@ if __name__ == "__main__":
     else:
         st.warning("No data to display. Please check your data.json file.")
 
-    # AI Assistant Feature
-    st.markdown("---")
-    with st.expander("🤖 AI Assistant: Extract New Funding Deal"):
-        st.info("Paste the URL of a funding announcement article below to see the AI in action.", icon="💡")
-        url_input = st.text_input("Article URL")
 
-        if st.button("Extract Funding Data"):
-            if url_input:
-                with st.spinner("Reading article and calling AI... this may take a moment."):
-                    extracted_data = extract_data_with_ai(url_input)
-                    st.subheader("Extracted Data:")
-                    st.json(extracted_data)
-                    st.success("Extraction complete! This data can be added to the main database in a future version.")
-            else:
-                st.warning("Please enter a URL.")
 
     # Add data freshness caption to build trust
     if not df.empty:
